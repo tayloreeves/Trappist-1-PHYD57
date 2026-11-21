@@ -3,3 +3,22 @@ Taylor start:
 we need to pick a method and coordinate system for it
 
 need a good concersvation of angular momentum and energy of the system
+
+Praditi additions:
+
+-----------------------------------------
+WHO DOES WHAT (proposed)
+-----------------------------------------
+A) Starting setup: get planet data from exoplanet.eu, work out starting
+   positions and speeds, make K slightly different copies of the system
+   (fixed random seed)
+B) Integrator: write the main time-stepping code, pick the time step,
+   test that it's accurate
+C) Speed / GPU: run all copies at the same time on CPU and GPU (CUDA),
+   compare how fast each one is
+D) Stability (Praditi): code that checks if a planet crashes, gets too
+   close, or flies away; Lyapunov bonus; plots; puts slides + writeup
+   together
+
+Everyone writes their own section and presents their own part.
+Names for A, B, C: ______
