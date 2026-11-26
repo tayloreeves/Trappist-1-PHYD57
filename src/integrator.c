@@ -80,49 +80,36 @@ double energy(int n,const double *x,const double *v,const double *m)
 //k1 = v, k2 = v + dt/2 * a(x+dt/2*v), k3 = v + dt/2 * a(x+dt/2*k2), k4 = v + dt * a(x+dt*k3)
 //x_{n+1} = x_n + dt/6 * (k1 + 2*k2 + 2*k3 + k4), v_{n+1} = v_n + dt/6 * (a(x_n) + 2*a(x_n+dt/2*v) + 2*a(x_n+dt/2*k2) + a(x_n+dt*k3))
 //uses old v for k1, so x is updated first
-void rk4_step(int n,double *x,double *v,const double *m,double dt,double *w)
+//one forest-ruth step of size dt, updates x and v in place
+//4th order symplectic: alternates drifts (x += c*v*dt) and kicks (v += d*a*dt)
+//3 force evaluations per step; w is scratch holding the acceleration (nd*n doubles)
+//coefficients use th = 1/(2 - 2^(1/3)):
+//  drifts: th/2, (1-th)/2, (1-th)/2, th/2     kicks: th, 1-2*th, th
+//the middle kick coefficient is negative, which is normal for this scheme
+void fr4_step(int n,double *x,double *v,const double *m,double dt,double *w)
 {
     int d=nd*n;
-    double *kv1=w,     *kv2=w+d,   *kv3=w+2*d, *kv4=w+3*d;
-    //kx1 is just v
-    double *kx2=w+4*d, *kx3=w+5*d, *kx4=w+6*d, *xt=w+7*d;  
-    double h=dt, hh=0.5*dt, h6=dt/6.0;
+    const double th=1.3512071919596578;
 
-    //set 1, slope at first point in step
-    accel(n,x,m,kv1);
+    //drift and kick step sizes
+    double c1=0.5*th*dt, c2=0.5*(1.0-th)*dt;
+    double d1=th*dt,     d2=(1.0-2.0*th)*dt;
 
-    //set 2, slope at midpoint in step
-    for(int i=0;i<d;i++)
-    {
-        //velocity at midpoint, position at midpoint
-        kx2[i]=v[i]+hh*kv1[i]; 
-        xt[i]=x[i]+hh*v[i];
-    }
-    accel(n,xt,m,kv2);
+    //drift 1, then kick 1 using the acceleration at the new positions
+    for(int i=0;i<d;i++) x[i]+=c1*v[i];
+    accel(n,x,m,w);
+    for(int i=0;i<d;i++) v[i]+=d1*w[i];
 
-    //set 3, slope at midpoint in step
-    for(int i=0;i<d;i++)
-    {
-        //velocity at midpoint, position at midpoint
-        kx3[i]=v[i]+hh*kv2[i];
-        xt[i]=x[i]+hh*kx2[i];
-    }
-    accel(n,xt,m,kv3);
+    //drift 2, then kick 2 (negative step)
+    for(int i=0;i<d;i++) x[i]+=c2*v[i];
+    accel(n,x,m,w);
+    for(int i=0;i<d;i++) v[i]+=d2*w[i];
 
-    //set 4, slope at endpoint in step
-    for(int i=0;i<d;i++)
-    {
-        //velocity at endpoint, position at endpoint
-        kx4[i]=v[i]+h*kv3[i];
-        xt[i]=x[i]+h*kx3[i];
-    }
-    accel(n,xt,m,kv4);
+    //drift 3, then kick 3
+    for(int i=0;i<d;i++) x[i]+=c2*v[i];
+    accel(n,x,m,w);
+    for(int i=0;i<d;i++) v[i]+=d1*w[i];
 
-    //weighted averages of the slopes to update position and velocity
-    //x is updated first, then v is updated using the new x
-    for(int i=0;i<d;i++)
-    {
-        x[i]+=h6*(v[i]+2.0*kx2[i]+2.0*kx3[i]+kx4[i]);
-        v[i]+=h6*(kv1[i]+2.0*kv2[i]+2.0*kv3[i]+kv4[i]);
-    }
+    //final drift
+    for(int i=0;i<d;i++) x[i]+=c1*v[i];
 }
