@@ -23,6 +23,7 @@ int main(void)
     //start with the largest timestep, halve it each pass
     double dt0=p/100.0, err[3];
 
+    //test 1: convergence order over one orbit
     printf("%-10s %14s %14s %8s\n","dt","pos error","dE/E","order");
     for(int c=0;c<3;c++)
     {
@@ -30,7 +31,7 @@ int main(void)
         double dt=dt0/(1<<c);
         long   ns=(long)round(p/dt);
 
-        //state arrays and rk4 workspace (wsize(nb) doubles)
+        //state arrays and forest-ruth workspace (wsize(nb) doubles)
         double x[nd*nb]={0}, v[nd*nb]={0};
         double *w=malloc(wsize(nb)*sizeof(double));
 
@@ -46,7 +47,7 @@ int main(void)
         //integrate exactly one period
         for(long s=0;s<ns;s++)
         {
-            rk4_step(nb,x,v,m,dt,w);
+            fr4_step(nb,x,v,m,dt,w);
         }
 
         //after one period the earth should be back where it started
@@ -57,7 +58,7 @@ int main(void)
         //relative energy change over the run
         double de=fabs((energy(nb,x,v,m)-e0)/e0);
 
-        //order = log2(error(dt)/error(dt/2)); rk4 should give about 4
+        //order = log2(error(dt)/error(dt/2)); forest-ruth should give about 4
         if(c==0)
         {
             printf("%-10.5f %14.3e %14.3e %8s\n",dt,err[c],de,"-");
@@ -68,5 +69,24 @@ int main(void)
         }
         free(w);
     }
+
+    //test 2: long run, energy error should stay bounded for a symplectic method
+    //(an rk4 run would show the max growing steadily instead)
+    double dt=p/100.0, emax=0.0;
+    double x[nd*nb]={0}, v[nd*nb]={0};
+    double *w=malloc(wsize(nb)*sizeof(double));
+    x[0]=-(m[1]/mt)*r;   v[1]=-(m[1]/mt)*vr;
+    x[nd]=(m[0]/mt)*r;   v[nd+1]=(m[0]/mt)*vr;
+    double e0=energy(nb,x,v,m);
+
+    //100000 steps = 1000 orbits, track the largest relative energy error so far
+    for(long s=0;s<100000;s++)
+    {
+        fr4_step(nb,x,v,m,dt,w);
+        double de=fabs((energy(nb,x,v,m)-e0)/e0);
+        if(de>emax) emax=de;
+        if((s+1)%10000==0) printf("orbit %6ld  max dE/E so far %10.3e\n",(s+1)/100,emax);
+    }
+    free(w);
     return 0;
 }
