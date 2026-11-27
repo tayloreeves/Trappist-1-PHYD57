@@ -43,7 +43,7 @@ def main(path):
     print(f"unstable by {t_end:.3g} yr: {n_uns} = {100*p:.1f} +/- {100*err:.1f} %")
     if n_uns:
         print(f"median instability time: {np.median(t[uns]):.3g} yr")
-        for r in ["close_encounter", "escape", "infall"]:
+        for r in np.unique(d["reason"][uns]):
             print(f"  {r}: {(d['reason'][uns] == r).sum()}")
 
     fig, ax = plt.subplots(1, 3, figsize=(15, 4.2))
@@ -71,8 +71,9 @@ def main(path):
     # which planets are involved
     counts = np.zeros(8, dtype=int)
     for i, j in zip(d["planet_i"][uns], d["planet_j"][uns]):
-        counts[i] += 1
-        if j > 0:
+        if i > 0:
+            counts[i] += 1
+        if j > 0:  # star-planet events have i = 0, j = planet
             counts[j] += 1
     ax[2].bar(PLANETS[1:], counts[1:], color="C2")
     ax[2].set_xlabel("planet")

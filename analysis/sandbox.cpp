@@ -19,7 +19,7 @@
 #include <string>
 #include <omp.h>
 
-const int N = NBODY;
+const int N = NB;
 const double TWO_PI = 2.0 * M_PI;
 
 // Agol et al. 2021
@@ -29,6 +29,12 @@ const double P_DAYS[7]  = {1.510826, 2.421937, 4.049219, 6.101013, 9.207540, 12.
 const double M_EARTH[7] = {1.374, 1.308, 0.388, 0.692, 1.039, 1.321, 0.326};
 const double ECOSW[7] = {-0.00215, 0.00055, -0.00496, 0.00433, -0.00840, 0.00380, -0.00365};
 const double ESINW[7] = {0.00217, 0.00001, 0.00267, -0.00461, -0.00051, 0.00128, -0.00002};
+const double R_EARTH[7] = {1.116, 1.097, 0.788, 0.920, 1.045, 1.129, 0.755};
+
+// radii in code units (lengths in units of a_b = 0.01154 AU)
+const double A_B_AU = 0.01154;
+const double R_STAR_CODE = 0.1192 * 0.00465047 / A_B_AU;
+const double R_EARTH_CODE = 4.26352e-5 / A_B_AU;
 
 const double YEAR = 365.25 / (P_DAYS[0] / TWO_PI);
 
@@ -135,15 +141,28 @@ void step(System& s, double dt, const FR& k) {
 struct RunResult { int code, i, j; double t_years, max_dE; };
 
 // run one copy until t_end or until it goes unstable
+// copy into the integrator layout pos[3*i+k] that stability.hpp uses
+void pack(const System& s, double* pos, double* vel) {
+    for (int i = 0; i < N; i++) {
+        pos[3*i] = s.x[i];   pos[3*i+1] = s.y[i];   pos[3*i+2] = s.z[i];
+        vel[3*i] = s.vx[i];  vel[3*i+1] = s.vy[i];  vel[3*i+2] = s.vz[i];
+    }
+}
+
 RunResult run_copy(System s, double dt, double t_end_years, int check_every) {
     FR k = forest_ruth();
-    StabilityLimits L = make_limits(s.x, s.y, s.z);
+    double pos[3*N], vel[3*N], R[N];
+    R[0] = R_STAR_CODE;
+    for (int i = 1; i < N; i++) R[i] = R_EARTH[i-1] * R_EARTH_CODE;
+    pack(s, pos, vel);
+    StabLimits L = stab_setup(pos, vel, s.m, R, 3, 1.0);   // G = 1 in code units
     double E0 = energy(s), max_dE = 0;
     long nsteps = (long)(t_end_years * YEAR / dt);
     for (long n = 1; n <= nsteps; n++) {
         step(s, dt, k);
         if (n % check_every == 0) {
-            StabilityResult r = check_stability(s.x, s.y, s.z, s.m, L);
+            pack(s, pos, vel);
+            StabResult r = stab_check(pos, s.m, L);
             if (r.code != STABLE) return {r.code, r.i, r.j, n * dt / YEAR, max_dE};
         }
         if (n % 10000 == 0) {
@@ -204,7 +223,7 @@ void scan(const char* label, const std::vector<Setup>& setups, const std::vector
         for (int c = 0; c < ncopies; c++) {
             RunResult& r = res[si * ncopies + c];
             fprintf(f, "%g,%d,%d,%.6e,%s,%d,%d,%.3e\n", values[si], c, r.code != STABLE,
-                    r.t_years, stability_name(r.code), r.i, r.j, r.max_dE);
+                    r.t_years, stab_name(r.code), r.i, r.j, r.max_dE);
             if (r.code != STABLE) { nu++; ts.push_back(r.t_years); }
             else mde = std::max(mde, r.max_dE);
         }
