@@ -62,3 +62,16 @@ Time in years. Reason is stable / close_encounter / escape / infall.
 - `plot_results.py` - plots for the main runs
 - `plot_edgecases.py` - resonance + mass scaling figure
 - `results/` - edge-case outputs and figure
+
+Analysis edited (Praditi)
+analysis/stability.hpp, same layout as the integrator (x[nd*i+k]), 2D or 3D.
+
+- stab_setup(x,v,m,R,nd,G)    once per copy, from the starting state
+- stab_check(x,m,L)           every few steps
+
+stops the run on: collision, tidal disruption (roche limit), close encounter
+(2 roche lobes, assignment), escape (2x planet h), infall (b's periapsis - 2 hill radii).
+hill sphere entries are only flagged (hill_flags), the run continues.
+
+results format: copy_id,unstable,t_instability,reason,planet_i,planet_j
+more details: analysis/README.md
